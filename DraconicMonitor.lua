@@ -1,6 +1,6 @@
---[[This is a fix of the original version (https://pastebin.com/knPtJCjb). Thanks to https://pastebin.com/dyre9saS and https://pastebin.com/gyMNUyRb for providing a fix to the clock while I was distracted from this project. I've remade the getTime function to make it work with Timezones again]] 
-local mon = peripheral.find("monitor_0")
-local core = peripheral.find("draconic_rf_storage_0")
+--[[This is a fix on https://pastebin.com/knPtJCjb, his code had a clock that called to a dead website. All I've done is remove that so that the code runs as intended, at some point I'll find a new site to call to for the clock but who knows when that will happen. ]] 
+local mon = peripheral.find("monitor")
+local core = peripheral.find("draconic_rf_storage")
 local tier = 0
 local colorShield = colors.white
 local colorCore = colors.white
@@ -9,21 +9,13 @@ local limitTransfer = true
 local currentControls = "main"
 local page = 1
 local putLimit = ""
-local version = "1.0"
-local timediff = 0
-local monthDays = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30 ,31}
+local version = "0.8"
+local energyStoredPrev = 0
 
 if fs.exists("logs.cfg") then
 else
 	file = io.open("logs.cfg", "w")
 	file:write("")
-	file:close()
-end
-
-if fs.exists("config.cfg") then
-else
-	file = io.open("config.cfg", "w")
-	file:write("Timezone: 0")
 	file:close()
 end
 
@@ -93,10 +85,6 @@ local function fileGetLines(path, startN, endN)
 	return linesOut	
 end
 
-local function editConfigFile(path,line,text)
-	fileReplaceLine(path,line,text)
-end
-
 local function detectInOutput()
 	input, output = peripheral.find("flux_gate")
 	--print(input)
@@ -133,102 +121,9 @@ else
 	detectInOutput()
 end
 
-local function makeNumber2Digits(number)
-    strNumber = tostring(number)
-    if string.len(strNumber) == 1 then
-        return "0" .. strNumber
-    else
-        return string.sub(strNumber, string.len(strNumber) - 2)
-    end
-end
-
-local function getTime(long)
-    date_table = os.date("*t")
-
-    hour, minute, second = date_table.hour, date_table.min, date_table.sec
-    year, month, day = date_table.year, date_table.month, date_table.day
-
-	timezoneConfig = fileGetLines("config.cfg",1,1)
-    timedifflocal = tonumber(string.sub(timezoneConfig[1], 10))
-
-    if hour + timedifflocal > 24 then 
-        if day + 1 > monthDays[month] then
-            if month + 1 > 12 then
-                year = year + 1
-                month = 1
-                day = 1
-                hour = hour + timedifflocal - 24
-            else 
-                month = month + 1
-                day = 1
-                hour = hour + timedifflocal - 24
-            end
-        else
-            day = day + 1
-            hour = hour + timedifflocal - 24
-        end
-    elseif hour + timedifflocal < 0 then
-        if day - 1 < 1 then
-            if month -1 < 1 then
-                year = year - 1
-                month = 12
-                day = monthDays[12]
-                hour = hour + timedifflocal + 24
-            else 
-                month = month - 1
-                day = monthDays[month]
-                hour = hour + timedifflocal + 24
-            end
-        else
-            day = day - 1
-            hour = hour + timedifflocal + 24
-        end
-    else
-        hour = hour + timedifflocal
-    end
-    if long then
-        return string.format("%s.%s.%d %s:%s:%s", makeNumber2Digits(day), makeNumber2Digits(month), year, makeNumber2Digits(hour), makeNumber2Digits(minute), makeNumber2Digits(second))
-    else
-        return string.format("%s.%s.%d %s:%s", makeNumber2Digits(day), makeNumber2Digits(month), year, makeNumber2Digits(hour), makeNumber2Digits(minute))
-    end
-end
-
-local function getLogs(path, xPos, yPos)
-	local Logs = fileGetLines(path, fileGetLength(path)-5, fileGetLength(path))
-	for i = 1, 6, 1 do
-		mon.setCursorPos(xPos+2,yPos+1+i)
-		mon.write(Logs[i])
-	end
-end
-
-local function addLog(path, time, text)
-	fileAppend(path, "["..time.."]")
-	fileAppend(path, text)
-end
-
 local function round(num, idp)
 	local mult = 10^(idp or 0)
 	return math.floor(num * mult + 0.5) / mult
-end
-
-local function convertRF(rf)
-	rfString = ""
-	if rf < 1000 then
-		rfString = tostring(rf)
-	elseif rf < 1000000 then
-		rfString = tostring(round((rf/1000),1)).."k"
-	elseif rf < 1000000000 then
-		rfString = tostring(round((rf/1000000),1)).."M"
-	elseif rf < 1000000000000 then
-		rfString = tostring(round((rf/1000000000),1)).."G"
-	elseif rf < 1000000000000000 then
-		rfString = tostring(round((rf/1000000000000),1)).."T"
-	elseif rf < 1000000000000000000 then
-		rfString = tostring(round((rf/1000000000000000),1)).."P"
-	elseif rf < 1000000000000000000000 then
-		rfString = tostring(round((rf/1000000000000000000),1)).."E"
-	end
-	return(rfString.."RF")
 end
 
 local function drawL1(xPos, yPos)
@@ -582,231 +477,12 @@ local function drawBox(xMin, xMax, yMin, yMax, title)
 	mon.write(" ")
 end	
 
-local function drawButton(xMin, xMax, yMin, yMax, text1, text2, bcolor)
-    mon.setBackgroundColor(bcolor)
-    for yPos = yMin, yMax, 1 do
-        for xPos = xMin, xMax, 1 do
-            mon.setCursorPos(xPos, yPos)
-            mon.write(" ")
-        end
-    end
-    mon.setCursorPos(math.floor((((xMax+xMin)/2)+0.5)-string.len(text1)/2),math.floor(((yMax+yMin)/2)))
-    mon.write(text1)
-    if text2 == nil then
-    else
-        mon.setCursorPos(math.floor((((xMax+xMin)/2)+0.5)-string.len(text2)/2),math.floor(((yMax+yMin)/2)+0.5))
-        mon.write(text2)
-    end
-    mon.setBackgroundColor(colors.black)
-end
-
-local function drawClear(xMin, xMax, yMin, yMax)
-mon.setBackgroundColor(colors.black)
-	for yPos = yMin, yMax, 1 do
-		for xPos = xMin, xMax, 1 do
-			mon.setCursorPos(xPos, yPos)
-			mon.write(" ")
-		end
-	end
-end
-
-local function drawNumpad(xPos ,yPos)
-	mon.setCursorPos(xPos+2,yPos+4)
-	mon.setBackgroundColor(colors.lightGray)
-	mon.write(" 1 ")
-	mon.setBackgroundColor(colors.gray)
-	mon.write(" ")
-	mon.setCursorPos(xPos+6,yPos+4)
-	mon.setBackgroundColor(colors.lightGray)
-	mon.write(" 2 ")
-	mon.setBackgroundColor(colors.gray)
-	mon.write(" ")
-	mon.setCursorPos(xPos+10,yPos+4)
-	mon.setBackgroundColor(colors.lightGray)
-	mon.write(" 3 ")
-	mon.setCursorPos(xPos+2,yPos+5)
-	mon.setBackgroundColor(colors.lightGray)
-	mon.write(" 4 ")
-	mon.setBackgroundColor(colors.gray)
-	mon.write(" ")
-	mon.setCursorPos(xPos+6,yPos+5)
-	mon.setBackgroundColor(colors.lightGray)
-	mon.write(" 5 ")
-	mon.setBackgroundColor(colors.gray)
-	mon.write(" ")
-	mon.setCursorPos(xPos+10,yPos+5)
-	mon.setBackgroundColor(colors.lightGray)
-	mon.write(" 6 ")
-	mon.setCursorPos(xPos+2,yPos+6)
-	mon.setBackgroundColor(colors.lightGray)
-	mon.write(" 7 ")
-	mon.setBackgroundColor(colors.gray)
-	mon.write(" ")
-	mon.setCursorPos(xPos+6,yPos+6)
-	mon.setBackgroundColor(colors.lightGray)
-	mon.write(" 8 ")
-	mon.setBackgroundColor(colors.gray)
-	mon.write(" ")
-	mon.setCursorPos(xPos+10,yPos+6)
-	mon.setBackgroundColor(colors.lightGray)
-	mon.write(" 9 ")
-	mon.setCursorPos(xPos+2,yPos+7)
-	mon.setBackgroundColor(colors.red)
-	mon.write(" < ")
-	mon.setBackgroundColor(colors.gray)
-	mon.write(" ")
-	mon.setCursorPos(xPos+6,yPos+7)
-	mon.setBackgroundColor(colors.lightGray)
-	mon.write(" 0 ")
-	mon.setBackgroundColor(colors.gray)
-	mon.write(" ")
-	mon.setCursorPos(xPos+10,yPos+7)
-	mon.setBackgroundColor(colors.red)
-	mon.write(" X ")
-	mon.setCursorPos(xPos+16,yPos+5)
-	mon.setBackgroundColor(colors.lime)
-	mon.write(" Apply")
-	mon.setCursorPos(xPos+16,yPos+7)
-	mon.setBackgroundColor(colors.red)
-	mon.write("Cancel")
-	mon.setBackgroundColor(colors.black)
-end	
-local function drawControls(xPos, yPos)
-	if currentControls == "main" then
-		--drawClear(xPos+1,xPos+22,yPos+1,yPos+8)
-		if limitTransfer == false then
-			drawButton(xPos+2,xPos+9,yPos+2,yPos+3,"Edit","InputMax",colors.gray)
-			drawButton(xPos+13,xPos+21,yPos+2,yPos+3,"Edit","OutputMax",colors.gray)
-		else
-			drawButton(xPos+2,xPos+9,yPos+2,yPos+3,"Edit","InputMax",colors.lime)
-			drawButton(xPos+13,xPos+21,yPos+2,yPos+3,"Edit","OutputMax",colors.red)
-		end
-		drawButton(xPos+2,xPos+9,yPos+6,yPos+7,"Edit","Config",colorCore)
-		drawButton(xPos+13,xPos+21,yPos+6,yPos+7,"No Use","Yet",colors.gray)
-	elseif currentControls == "editInput" or currentControls == "editOutput" then
-		--drawClear(xPos+1,xPos+22,yPos+1,yPos+8)
-		mon.setCursorPos(xPos+2,yPos+2)
-		if currentControls == "editInput" then
-			mon.write("Edit Max Input Rate")
-		else
-			mon.write("Edit Max Output Rate")
-		end
-		mon.setCursorPos(xPos+2,yPos+3)
-		mon.setBackgroundColor(colors.gray)
-		mon.write("___________")
-		if string.len(putLimit) >= 11 then
-				putLimit = string.sub(putLimit,string.len(putLimit)-10)
-		end
-		if putLimit ~= "" then
-			if tonumber(putLimit) <= 2147483647 then
-				mon.setCursorPos(xPos+13-string.len(putLimit),yPos+3)
-				mon.write(putLimit)
-				putLimitNum = tonumber(putLimit)
-				mon.setBackgroundColor(colors.black)
-				fix = 0
-				if putLimitNum < 1000 then
-					if string.len(putLimit) <= 3 then
-						mon.setCursorPos(xPos+22-string.len(putLimit)-2,yPos+3)
-						mon.write(putLimit)
-					else
-						mon.setCursorPos(xPos+22-4-2,yPos+3)
-						mon.write(string.sub(putLimit,string.len(putLimit)-2))
-					end
-				elseif putLimitNum < 1000000 then
-						if (round((putLimitNum/1000),1)*10)/(round((putLimitNum/1000),0)) == 10 then
-							fix = 2
-						end
-					mon.setCursorPos(xPos+22-string.len(tostring(round((putLimitNum/1000),1)))-3-fix,yPos+3)
-					mon.write(round((putLimitNum/1000),1))
-					mon.write("k")
-				elseif putLimitNum < 1000000000 then
-						--if putLimitNum == 1000000*i or putLimitNum == 10000000*i or putLimitNum == 100000000*i then
-						if (round((putLimitNum/1000000),1)*10)/(round((putLimitNum/1000000),0)) == 10 then
-							fix = 2
-						end	
-					mon.setCursorPos(xPos+22-string.len(tostring(round((putLimitNum/1000000),1)))-3-fix,yPos+3)
-					mon.write(round((putLimitNum/1000000),1))
-					mon.write("M")
-				elseif putLimitNum < 1000000000000 then
-						if (round((putLimitNum/1000000000),1)*10)/(round((putLimitNum/1000000000),0)) == 10 then
-							fix = 2
-						end	
-					mon.setCursorPos(xPos+22-string.len(tostring(round((putLimitNum/1000000000),1)))-3-fix,yPos+3)
-					mon.write(round((putLimitNum/1000000000),1))
-					mon.write("G")
-				end
-				mon.write("RF")
-			else
-				putLimit = "2147483647"
-				mon.setCursorPos(xPos+13-string.len(putLimit),yPos+3)
-				mon.write(putLimit)
-				mon.setCursorPos(xPos+22-6,yPos+3)
-				mon.setBackgroundColor(colors.black)
-				mon.write("2.1GRF")
-				mon.setCursorPos(xPos+22-6,yPos+4)
-				mon.write("(max)")
-				
-			end
-			
-		end
-		drawNumpad(xPos, yPos)
-	elseif currentControls == "editOutput" then
-	elseif currentControls == "editConfig" then
-		mon.setCursorPos(xPos+2,yPos+2)
-		mon.write("Edit Config")
-		if limitTransfer == true then
-			drawButton(xPos+2,xPos+10,yPos+3,yPos+4,"Detect","Flux_Gate",colorCore)
-		else
-			drawButton(xPos+2,xPos+10,yPos+3,yPos+4,"Detect","Flux_Gate",colors.gray)
-		end
-		drawButton(xPos+14,xPos+21,yPos+3,yPos+4,"Edit","Timezone",colorCore)
-		mon.setCursorPos(xPos+16,yPos+7)
-		mon.setBackgroundColor(colors.red)
-		mon.write("Cancel")
-		mon.setCursorPos(xPos+2,yPos+7)
-		mon.setBackgroundColor(colors.gray)
-		mon.write("Prev")
-		mon.setCursorPos(xPos+7,yPos+7)
-		mon.write("Next")
-		mon.setBackgroundColor(colors.black)
-	elseif currentControls == "editTimezone" then
-		mon.setCursorPos(xPos+2,yPos+2)
-		mon.write("Type Differenz")
-		mon.setCursorPos(xPos+5,yPos+4)
-		mon.setBackgroundColor(colors.red)
-		mon.write(" -1 ")
-		mon.setBackgroundColor(colors.lightGray)
-		mon.write(" ")
-		mon.setBackgroundColor(colors.gray)
-		mon.write("   ")
-		if timediff >= -12 and timediff <= 12 then
-		elseif timediff < -12 then
-			timediff = -12
-		elseif timediff > 12 then
-			timediff = 12
-		end
-		mon.setCursorPos(xPos+13-string.len(tostring(timediff)),yPos+4)
-		mon.setBackgroundColor(colors.gray)
-		mon.write(tostring(timediff))
-		mon.setBackgroundColor(colors.lightGray)
-		mon.write(" ")
-		mon.setBackgroundColor(colors.lime)
-		mon.write(" +1 ")
-		mon.setCursorPos(xPos+9,yPos+7)
-		mon.setBackgroundColor(colors.red)
-		mon.write("Cancel")
-		mon.setBackgroundColor(colors.black)
-		mon.write(" ")
-		mon.setBackgroundColor(colors.lime)
-		mon.write(" Apply")
-		mon.setBackgroundColor(colors.black)
-	end
-end
-
 local function drawDetails(xPos, yPos)
 	energyStored = core.getEnergyStored()
 	energyMax = core.getMaxEnergyStored()
-	energyTransfer = core.getTransferPerTick()
+    
+	energyTransfer = (energyStored - energyStoredPrev) / 20 
+	energyStoredPrev = energyStored
 	if limitTransfer == true then
 		inputRate = input.getFlow()
 		outputRate = output.getFlow()
@@ -1084,18 +760,13 @@ local function drawAll()
 		verPos = 51 - string.len(versionText)
 		mon.setCursorPos(verPos,26)
 		mon.setTextColor(colors.gray)
-		mon.write(versionText)
 		mon.setTextColor(colors.white)
-		drawBox(2,20,2,14,"ENERGY CORE")
-		drawBox(22,49,2,14,"DETAILS")
-		drawBox(2,24,16,25,"LOGS")
-		drawBox(26,49,16,25,"CONTROLS")
-		yPos = 4
+		drawBox(2,20,4,16,"ENERGY CORE")
+		drawBox(22,49,4,16,"DETAILS")
+		yPos = 6
 		xMin = 5
 		for xPos = xMin, xMin+12, 1 do
-			drawDetails(24,4)
-			drawControls(26,16)
-			getLogs("logs.cfg",2,16)
+			drawDetails(24,6)
 			if tier <= 7 then
 				colorShield = colors.lightBlue
 				colorCore = colors.cyan
@@ -1211,235 +882,12 @@ local function drawAll()
 			mon.write("   ")
 			mon.setCursorPos(xMin+10, yPos+8)
 			mon.write("   ")
-			mon.setCursorPos(51 - string.len(getTime(true)),1)
-			mon.write(getTime(true))
+			mon.setCursorPos(51 - 8,1)
 			sleep(1)
 		end
 	end
 end
 
-local function clickListener()
-	event, side, xCPos, yCPos = os.pullEvent("monitor_touch")
-	if xCPos == 1 and yCPos == 1 then
-		mon.setCursorPos(1,1)
-		mon.write("Click!")
-		sleep(1)
-		mon.write("      ")
-	end
-	if currentControls == "main" then
-		if xCPos >= 28 and xCPos <= 35 and yCPos >= 18 and yCPos <= 19 and limitTransfer == true then
-			drawClear(27,48,17,24)
-			currentControls = "editInput"
-		elseif xCPos >= 39 and xCPos <= 47 and yCPos >= 18 and yCPos <= 19 and limitTransfer == true then
-			drawClear(27,48,17,24)
-			currentControls = "editOutput"
-		elseif xCPos >= 28 and xCPos <= 35 and yCPos >= 22 and yCPos <= 23 then
-			drawClear(27,48,17,24)
-			currentControls = "editConfig"
-		end
-	elseif currentControls == "editInput" or currentControls == "editOutput" then
-		if xCPos >= 28 and xCPos <= 30 and yCPos == 20 then
-			mon.setCursorPos(28,20)
-			mon.setBackgroundColor(colors.gray)
-			mon.write(" 1 ")
-			putLimit = putLimit .. "1"
-			sleep(0.2)
-			mon.setCursorPos(28,20)
-			mon.setBackgroundColor(colors.lightGray)
-			mon.write(" 1 ")
-			mon.setBackgroundColor(1,1)
-			mon.setBackgroundColor(colors.black)
-			mon.write(" ")
-		elseif xCPos >= 32 and xCPos <= 34 and yCPos == 20 then
-			mon.setCursorPos(32,20)
-			mon.setBackgroundColor(colors.gray)
-			mon.write(" 2 ")
-			putLimit = putLimit .. "2"
-			sleep(0.2)
-			mon.setCursorPos(32,20)
-			mon.setBackgroundColor(colors.lightGray)
-			mon.write(" 2 ")
-			mon.setBackgroundColor(1,1)
-			mon.setBackgroundColor(colors.black)
-			mon.write(" ")
-			mon.write(" ")
-		elseif xCPos >= 36 and xCPos <= 38 and yCPos == 20 then
-			mon.setCursorPos(36,20)
-			mon.setBackgroundColor(colors.gray)
-			mon.write(" 3 ")
-			putLimit = putLimit.."3"
-			sleep(0.2)
-			mon.setCursorPos(36,20)
-			mon.setBackgroundColor(colors.lightGray)
-			mon.write(" 3 ")
-			mon.setBackgroundColor(1,1)
-			mon.setBackgroundColor(colors.black)
-			mon.write(" ")
-		elseif xCPos >= 28 and xCPos <= 30 and yCPos == 21 then
-			mon.setCursorPos(28,21)
-			mon.setBackgroundColor(colors.gray)
-			mon.write(" 4 ")
-			putLimit = putLimit.."4"
-			sleep(0.2)
-			mon.setCursorPos(28,21)
-			mon.setBackgroundColor(colors.lightGray)
-			mon.write(" 4 ")
-			mon.setBackgroundColor(1,1)
-			mon.setBackgroundColor(colors.black)
-			mon.write(" ")
-		elseif xCPos >= 32 and xCPos <= 34 and yCPos == 21 then
-			mon.setCursorPos(32,21)
-			mon.setBackgroundColor(colors.gray)
-			mon.write(" 5 ")
-			putLimit = putLimit.."5"
-			sleep(0.2)
-			mon.setCursorPos(32,21)
-			mon.setBackgroundColor(colors.lightGray)
-			mon.write(" 5 ")
-			mon.setBackgroundColor(1,1)
-			mon.setBackgroundColor(colors.black)
-			mon.write(" ")
-		elseif xCPos >= 36 and xCPos <= 38 and yCPos == 21 then
-			mon.setCursorPos(36,21)
-			mon.setBackgroundColor(colors.gray)
-			mon.write(" 6 ")
-			putLimit = putLimit.."6"
-			sleep(0.2)
-			mon.setCursorPos(36,21)
-			mon.setBackgroundColor(colors.lightGray)
-			mon.write(" 6 ")
-			mon.setBackgroundColor(1,1)
-			mon.setBackgroundColor(colors.black)
-			mon.write(" ")
-		elseif xCPos >= 28 and xCPos <= 30 and yCPos == 22 then
-			mon.setCursorPos(28,22)
-			mon.setBackgroundColor(colors.gray)
-			mon.write(" 7 ")
-			putLimit = putLimit.."7"
-			sleep(0.2)
-			mon.setCursorPos(28,22)
-			mon.setBackgroundColor(colors.lightGray)
-			mon.write(" 7 ")
-			mon.setBackgroundColor(1,1)
-			mon.setBackgroundColor(colors.black)
-			mon.write(" ")
-		elseif xCPos >= 32 and xCPos <= 34 and yCPos == 22 then
-			mon.setCursorPos(32,22)
-			mon.setBackgroundColor(colors.gray)
-			mon.write(" 8 ")
-			putLimit = putLimit.."8"
-			sleep(0.2)
-			mon.setCursorPos(32,22)
-			mon.setBackgroundColor(colors.lightGray)
-			mon.write(" 8 ")
-			mon.setBackgroundColor(1,1)
-			mon.setBackgroundColor(colors.black)
-			mon.write(" ")
-		elseif xCPos >= 36 and xCPos <= 38 and yCPos == 22 then
-			mon.setCursorPos(36,22)
-			mon.setBackgroundColor(colors.gray)
-			mon.write(" 9 ")
-			putLimit = putLimit.."9"
-			sleep(0.2)
-			mon.setCursorPos(36,22)
-			mon.setBackgroundColor(colors.lightGray)
-			mon.write(" 9 ")
-			mon.setBackgroundColor(1,1)
-			mon.setBackgroundColor(colors.black)
-			mon.write(" ")
-		elseif xCPos >= 28 and xCPos <= 30 and yCPos == 23 then
-			mon.setCursorPos(28,23)
-			mon.setBackgroundColor(colors.gray)
-			mon.write(" < ")
-			putLimit = string.sub(putLimit,0,string.len(putLimit)-1)
-			sleep(0.2)
-			mon.setCursorPos(28,23)
-			mon.setBackgroundColor(colors.red)
-			mon.write(" < ")
-			mon.setBackgroundColor(1,1)
-			mon.setBackgroundColor(colors.black)
-			mon.write(" ")
-		elseif xCPos >= 32 and xCPos <= 34 and yCPos == 23 then
-			mon.setCursorPos(32,23)
-			mon.setBackgroundColor(colors.gray)
-			mon.write(" 0 ")
-			putLimit = putLimit.."0"
-			sleep(0.2)
-			mon.setCursorPos(32,23)
-			mon.setBackgroundColor(colors.lightGray)
-			mon.write(" 0 ")
-			mon.setBackgroundColor(1,1)
-			mon.setBackgroundColor(colors.black)
-			mon.write(" ")
-		elseif xCPos >= 36 and xCPos <= 38 and yCPos == 23 then
-			mon.setCursorPos(36,23)
-			mon.setBackgroundColor(colors.gray)
-			mon.write(" X ")
-			putLimit = ""
-			sleep(0.2)
-			mon.setCursorPos(36,23)
-			mon.setBackgroundColor(colors.red)
-			mon.write(" X ")
-			mon.setBackgroundColor(1,1)
-			mon.setBackgroundColor(colors.black)
-			mon.write(" ")
-		elseif xCPos >= 42 and xCPos <= 47 and yCPos == 23 then
-			putLimit = ""
-			drawClear(27,48,17,24)
-			currentControls = "main"
-		elseif xCPos >= 42 and xCPos <= 47 and yCPos == 21 then
-			if currentControls == "editInput" then
-				if putLimit == "" then
-					putLimitNum = 0
-				else
-					putLimitNum = tonumber(putLimit)
-				end
-				input.setSignalLowFlow(putLimitNum)
-				addLog("logs.cfg",getTime(false),"InputMax > "..convertRF(putLimitNum))
-			else
-				if putLimit == "" then
-					putLimitNum = 0
-				else
-					putLimitNum = tonumber(putLimit)
-				end
-				output.setSignalLowFlow(putLimitNum)
-				addLog("logs.cfg",getTime(false),"OutputMax > "..convertRF(putLimitNum))
-			end
-			putLimit = ""
-			drawClear(27,48,17,24)
-			currentControls = "main"
-		end
-	elseif currentControls == "editConfig" then
-		if xCPos >= 28 and xCPos <= 28+8 and yCPos >= 18 and yCPos <= 19 and limitTransfer == true then
-			drawButton(26+2,26+10,16+3,16+4,"Detect","Flux_Gate",colors.gray)
-			detectInOutput()
-			addLog("logs.cfg",getTime(false),"Detected Flux_Gates")
-		elseif xCPos >= 26+16 and xCPos <= 26+16+6 and yCPos >= 16+7 and yCPos <= 16+7 then
-			currentControls = "main"
-		elseif xCPos >= 40 and xCPos <= 47 and yCPos >= 19 and yCPos <= 20 then
-			currentControls = "editTimezone"
-		end
-	elseif currentControls == "editTimezone" then
-		if xCPos >= 26+9 and xCPos <= 26+15 and yCPos >= 16+7 and yCPos <= 16+7 then
-			currentControls = "main"
-		elseif xCPos >= 26+16 and xCPos <= 26+16+6 and yCPos >= 16+7 and yCPos <= 16+7 then
-			if timediff >= -12 and timediff <= 12 then
-				editConfigFile("config.cfg",1,"Timezone: "..timediff)
-			elseif timediff < -12 then
-				editConfigFile("config.cfg",1,"Timezone: -12")
-			elseif timediff > 12 then
-				editConfigFile("config.cfg",1,"Timezone: 12")
-			end
-			addLog("logs.cfg",getTime(false),"Edited Timezone")
-			currentControls = "main"
-		elseif xCPos >= 26+2+3 and xCPos <= 26+2+4+2 and yCPos >= 16+4 and yCPos <= 16+4 then
-			timediff = timediff-1
-		elseif xCPos >= 26+2+4+8 and xCPos <= 26+2+4+6+5 and yCPos >= 16+4 and yCPos <= 16+4 then
-			timediff = timediff+1
-		end
-	end
-end
-
 while true do
-	parallel.waitForAny(drawAll,clickListener)
+	parallel.waitForAny(drawAll)
 end
