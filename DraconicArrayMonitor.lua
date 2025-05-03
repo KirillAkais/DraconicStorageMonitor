@@ -452,7 +452,7 @@ local function drawDetails(xPos, yPos)
 	energyStored = 0
 	energyMax = 0
 	
-	for i = 0, #cores do
+	for i = 1, #cores do
 		energyStored = energyStored + cores[i].getEnergyStored()
 		energyMax = energyMax + cores[i].getMaxEnergyStored()
 	end
